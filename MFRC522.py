@@ -314,12 +314,21 @@ class MFRC522:
 
         return (status, backData)
 
-    def CalulateCRC(self, pIndata):
+    # Use host processor to calc CRC.
+    def CalulateCRC(self, pInData):
+        wCrc = 0x6363
+        for bt in pInData:
+            bt = (bt ^ (wCrc & 0xff))
+            bt = (bt ^ (bt << 4)) & 0xff
+            wCrc = (wCrc >> 8) ^ (bt << 8) ^ (bt << 3) ^ (bt >> 4)
+        return [ wCrc & 0xff, (wCrc >> 8) & 0xff ]
+
+    def CalulateCRCDevice(self, pInData):
         self.clearBitMask(self.DivIrqReg, 0x04)
         self.setBitMask(self.FIFOLevelReg, 0x80)
         i = 0
-        while i < len(pIndata):
-            self.writeRegister(self.FIFODataReg, pIndata[i])
+        while i < len(pInData):
+            self.writeRegister(self.FIFODataReg, pInData[i])
             i = i + 1
         self.writeRegister(self.CommandReg, self.PCD_CALCCRC)
         i = 0xFF
@@ -440,12 +449,12 @@ class MFRC522:
             (status, backData, backLen) = self.MFRC522_ToCard(
                 self.PCD_TRANSCEIVE, buf)
             if not(status == self.MI_OK) or not(backLen == 4) or not((backData[0] & 0x0F) == 0x0A):
-                print(("Error while writing"))
+                print(("Error while writing data"))
                 status = self.MI_ERR
-            if status == self.MI_OK:
-                print(("Data written"))
+            # if status == self.MI_OK:
+            #     print(("Data written"))
         else:
-            print("Error while preparing ")
+            print("Error while process write cmd")
         return status
 
     def MFRC522_DumpClassic1K(self, key, uid):

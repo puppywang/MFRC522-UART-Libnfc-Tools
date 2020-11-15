@@ -69,10 +69,10 @@ def main():
         format_card = False
         no_auth = command == 'ra'
     elif command in ['w', 'W', 'f', 'wa']:
-        unlock = command = 'W'
+        unlock = command == 'W'
         format_card = command == 'f'
         action_write = True
-        no_auth = command = 'rw'
+        no_auth = command == 'rw'
     else:
         usage(sys.argv[0])
         exit(-1)
@@ -100,7 +100,7 @@ def main():
     if key_file:
         try:
             with open(sys.argv[5], 'rb') as key_fp:
-                key_bin = key_fp.read()
+                key_bin = list(key_fp.read())
                 if len(key_bin) < 4:
                     print("Could not read UID from key file: %s" % sys.argv[5])
                     exit(-1)
@@ -128,9 +128,9 @@ def main():
                 "Expected MIFARE Classic card with UID starting as: ", key_bin[:4])
             print_hex(
                 "Got card with UID starting as:                     ", uid)
-        if not force_key_file:
-            print("Aborting!")
-            exit(-1)
+            if not force_key_file:
+                print("Aborting!")
+                exit(-1)
     print_hex('Found MIFARE Classic card: ', uid)
     # Guess size.
     if atqa[1] & 0x02 == 0x02 or sak == 0x18:
@@ -163,7 +163,7 @@ def main():
     if action_write:
         try:
             with open(sys.argv[4], 'rb') as dump_fp:
-                dump_bin = dump_fp.read((blocks + 1) * 16)
+                dump_bin = list(dump_fp.read((blocks + 1) * 16))
                 if len(dump_bin) != (blocks + 1) * 16:
                     print('Could not read key file: %s, should %d vs %d' %
                           (sys.argv[4], (blocks + 1) * 16, len(dump_bin)))
@@ -334,6 +334,9 @@ def write_card(mf_reader, uid, write_block_zero, key_bin, magic2, blocks, key_a,
                 return False
 
     print('Writing %d blocks |' % (blocks + 1), end='', flush=True)
+
+    failure = False
+    success_blocks = 0
     for block in range(0, blocks+1):
         if is_first_block(block):
             if failure:
@@ -346,33 +349,33 @@ def write_card(mf_reader, uid, write_block_zero, key_bin, magic2, blocks, key_a,
                 print('!\nError: authentication failed for block 0x%02x' % block)
                 return False
 
-            if is_trailer_block(block):
-                if format_card:
-                    # Copy the default key and reset the access bits
-                    trailer = DEFAULT_KEY + DEFAULT_ACL + DEFAULT_KEY
-                else:
-                    trailer = dump_bin[block*16 : (block+1)*16]
-                # Try to write the trailer
-                if mf_reader.MFRC522_Write(block, trailer) != mf_reader.MI_OK:
-                    print('failed to write trailer block %d' % block, end='', flush=True)
-                    failure = True
+        if is_trailer_block(block):
+            if format_card:
+                # Copy the default key and reset the access bits
+                trailer = DEFAULT_KEY + DEFAULT_ACL + DEFAULT_KEY
             else:
-                if block == 0 and not write_block_zero and not magic2:
-                    continue
+                trailer = dump_bin[block*16 : (block+1)*16]
+            # Try to write the trailer
+            if mf_reader.MFRC522_Write(block, trailer) != mf_reader.MI_OK:
+                print('failed to write trailer block %d' % block, end='', flush=True)
+                failure = True
+        else:
+            if block == 0 and not write_block_zero and not magic2:
+                continue
 
-                # Make sure a earlier write did not fail
-                if not failure:
-                    if format_card and block:
-                        data = [0x00] * 16
-                    else:
-                        data = dump_bin[block*16 : (block+1)*16]
-                    if block == 0:
-                        if data[0] ^ data[1] ^ data[2] ^ data[3] ^ data[4] != 0x0 and not magic2:
-                            print('!\nError: incorrect BCC in MFD file!')
-                            print('Expecting BCC=%02X' % data[0] ^ data[1] ^ data[2] ^ data[3])
-                            return False
-                    if mf_reader.MFRC522_Write(block, data) != mf_reader.MI_OK:
-                        failure = True
+            # Make sure a earlier write did not fail
+            if not failure:
+                if format_card and block:
+                    data = [0x00] * 16
+                else:
+                    data = dump_bin[block*16 : (block+1)*16]
+                if block == 0:
+                    if data[0] ^ data[1] ^ data[2] ^ data[3] ^ data[4] != 0x0 and not magic2:
+                        print('!\nError: incorrect BCC in MFD file!')
+                        print('Expecting BCC=%02X' % data[0] ^ data[1] ^ data[2] ^ data[3])
+                        return False
+                if mf_reader.MFRC522_Write(block, data) != mf_reader.MI_OK:
+                    failure = True
         # Show if the write went well for each block
         success_blocks = print_success_or_failure(failure, success_blocks)
         if not allow_failure and failure:

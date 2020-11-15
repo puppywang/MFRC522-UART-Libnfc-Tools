@@ -226,11 +226,11 @@ def main():
         print('Cannot determine card type from SAK')
         exit(-1)
     
-    t.sectors = [Sector()] * t.num_sectors
+    t.sectors = [Sector() for _ in range(t.num_sectors)]
     p_keys = []
     b_keys = []
 
-    d.distances = [0] * d.num_distances
+    d.distances = [0 for _ in range(d.num_distances)]
 
     print('Try to authenticate to all sectors with default keys...')
     print("Symbols: '.' no key found, '/' A key found, '\\' B key found, 'x' both keys found")
@@ -241,7 +241,7 @@ def main():
         print('] -> [', end='', flush=True)
         i = 0   # Sector counter
         # Iterate over every block, where we haven't found a key yet
-        for block in range(t.num_blocks):
+        for block in range(t.num_blocks+1):
             if is_trailer_block(block):
                 if not t.sectors[i].found_keyA:
                     if mf_reader.MFRC522_Auth(mf_reader.PICC_AUTHENT1A, block, key, t.auth_uid) != mf_reader.MI_OK:
@@ -262,7 +262,7 @@ def main():
                                 if mf_reader.MFRC522_Auth(mf_reader.PICC_AUTHENT1B, block, keyB, t.auth_uid) != mf_reader.MI_OK:
                                     re_anticol(mf_reader)
                                 else:
-                                    t.sectors[i].KeyB = keyB
+                                    t.sectors[i].keyB = keyB
                                     t.sectors[i].found_keyB = True
                                     b_keys.append(keyB)
                             else:
@@ -276,7 +276,7 @@ def main():
                         # No success, try next block
                         t.sectors[i].trailer = block
                     else:
-                        t.sectors[i].KeyB = key
+                        t.sectors[i].keyB = key
                         t.sectors[i].found_keyB = True
                 if t.sectors[i].found_keyA and t.sectors[i].found_keyB:
                     print('x', end='', flush=True)
@@ -305,16 +305,16 @@ def main():
             known_key_letter = 'A'
             known_section = i
         else:
-            print('Sector %02d - Unknown Key A               ' % i, end='', flush=True)
+            print('Sector %02d - Unknown Key A                   ' % i, end='', flush=True)
             unknown_key_letter = 'A'
             unknown_sector = i
         if t.sectors[i].found_keyB:
-            print_hex('Sector %02d - Found   Key B: ' % i, t.sectors[i].keyB, end='')
+            print_hex(' Sector %02d - Found   Key B: ' % i, t.sectors[i].keyB)
             known_key = t.sectors[i].keyB
             known_key_letter = 'B'
             known_section = i
         else:
-            print('Sector %02d - Unknown Key B               ' % i, end='', flush=True)
+            print(' Sector %02d - Unknown Key B' % i)
             unknown_key_letter = 'B'
             unknown_sector = i
 
